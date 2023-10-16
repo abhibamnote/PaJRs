@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluating PaJRs with LLMs</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body class="dark-theme">
+    <h1>Evaluating PaJRs with LLMs</h1>
+
+    <form action="">
+        <label for="URL">Please Enter URL of the blog</label>
+        <input type="text" id="URL" class="input-field">
+        <div class="button-container">
+            <button id="myButton" class="original-button">Click Me</button>
+            <div id="loadingSpinner" class="hidden"></div>
+        </div>
+    </form>
+
+    <div class="output hidden" id="output"></div>
+
+    <style>
+        body.dark-theme {
+            background-color: #333;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        form {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .input-field {
+            padding: 10px;
+            width: 95%;
+            font-size: 16px;
+        }
+
+        .button-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .original-button {
+            background-color: #007bff;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Define your loading spinner styles here */
+        #loadingSpinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .output {
+            margin-top: 20px;
+            padding: 10px;
+            width: 95%;
+            border: 1px solid #fff;
+            white-space: break-spaces;
+        }
+    </style>
+
+    <script>
+        const button = document.getElementById("myButton");
+        const loadingSpinner = document.getElementById("loadingSpinner");
+
+        button.addEventListener("click", () => {
+            event.preventDefault();
+            button.classList.add("hidden");
+            loadingSpinner.classList.remove("hidden");
+            sendAPI();
+        });
+
+        const stopBtn = () => {
+            button.classList.remove("hidden");
+            loadingSpinner.classList.add("hidden");
+        };
+
+        const sendAPI = async () => {
+            try {
+                const {data} = await axios.post('/api/gpt', {
+                    url: document.getElementById('URL').value
+                });
+                stopBtn();
+                console.log(data);
+                document.getElementById('output').classList.remove('hidden');
+                document.getElementById('output').innerHTML = data.results.response;
+
+            } catch (error) {
+                console.log(error);
+            }
+        };
+
+        const sendStreamingAPI = () => {
+            // Create a new ReadableStream from the API response
+            let outputContainer = document.getElementById('output');
+
+            fetch('/api/streaming-gpt', {
+                method: 'POST',
+                body: JSON.stringify({ url: document.getElementById('URL').value }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.body)
+            .then(stream => {
+                const reader = stream.getReader();
+
+                return new ReadableStream({
+                    async start(controller) {
+                        try {
+                            while (true) {
+                                const { done, value } = await reader.read();
+
+                                if (done) {
+                                    controller.close();
+                                    break;
+                                }
+
+                                // Process and display the streamed data
+                                outputContainer.innerHTML += value + "<br>";
+                            }
+                        } catch (error) {
+                            console.error("Error reading the stream:", error);
+                            controller.error(error);
+                        }
+                    }
+                });
+            })
+            .then(stream => {
+                // Create a response object from the ReadableStream (optional)
+                return new Response(stream, { headers: { "Content-Type": "text/plain" } });
+            })
+            .then(response => {
+                // Consume the response (optional)
+                return response.text();
+            })
+            .then(data => {
+                console.log("All data received:", data);
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            })
+            .finally(() => {
+                stopBtn();
+            });
+        };
+    </script>
+</body>
+
+</html>
