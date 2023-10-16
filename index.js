@@ -51,6 +51,6 @@ app.post('/api/gpt', async (req, res)=>{
 
 
 
-app.listen(4050, ()=>{
+app.listen(process.env.PORT, ()=>{
     console.log("Connected to 4050");
 })
